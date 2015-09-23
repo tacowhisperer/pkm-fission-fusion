@@ -1,0 +1,19 @@
+{
+  "name": "pkm-fission-fusion",
+  "version": "1.0.0",
+  "description": "Enjoy the world of Pokemon Fusion/Fission.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tacowhisperer/pkm-fission-fusion.git"
+  },
+  "author": "Andres Salgado",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tacowhisperer/pkm-fission-fusion/issues"
+  },
+  "homepage": "https://github.com/tacowhisperer/pkm-fission-fusion#readme"
+}
