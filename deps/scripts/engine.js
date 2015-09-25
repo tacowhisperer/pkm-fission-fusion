@@ -99,7 +99,6 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
         var t = time,
             n = num,
             v0 = val,
-            v = val,
             e = end,
             f = func || function (a) {return i < 0? 0 : a;},
             cT = v.length === e.length === 3? new ColorTweener (v, e, n) : false; // cT = use color tweener flag
@@ -107,16 +106,16 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
         // Simple defensive type check to prevent hours of simple mistakes
         if (!cT && (!isNaN (+v) && !isNaN (+e))) throw "Start and end value are not the same!";
 
-        /* Alias for stepping this animation one frame further. Returns NaN if (time - t) > n, v otherwise */
-        this.step = function (time, hex) {
-            var i = time - t;
+        /* Returns the animation state at the specified time; returns NaN if (time - t) > n, value at time otherwise */
+        this.valueAt = function (time, hex) {
+            var i = time - t, v;
             if (i > n) return NaN;
 
             // Color interpolation
-            else if (cT) cT.colorAt (i, hex);
+            else if (cT) return cT.colorAt (i, hex);
 
             // Numerical interpolation
-            else v = (1 - f(i / n)) * v0 + f(i / n) * e;
+            else return (1 - f(i / n)) * v0 + f(i / n) * e;
         };
     }
 
