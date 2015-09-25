@@ -108,12 +108,12 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
         if (!cT && (!isNaN (+v) && !isNaN (+e))) throw "Start and end value are not the same!";
 
         /* Alias for stepping this animation one frame further. Returns NaN if (time - t) > n, v otherwise */
-        this.step = function (time) {
+        this.step = function (time, hex) {
             var i = time - t;
             if (i > n) return NaN;
 
             // Color interpolation
-            else if (cT) cT. ;
+            else if (cT) cT.colorAt (i, hex);
 
             // Numerical interpolation
             else v = (1 - f(i / n)) * v0 + f(i / n) * e;
@@ -121,7 +121,8 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
     }
 
     /**
-     * RGB Color Tweener that fades from the starting color to the ending color through the CIE-L*ab color space
+     * RGB Color Tweener that fades from the starting color to the ending color through the CIE-L*ab color space. Does
+     * not require a starting time because of rk4 time integration.
      */
     function ColorTweener (sRGB, eRGB, num) {
         var sLab = xyzToLab (rgbToXYZ (sRGB)),
