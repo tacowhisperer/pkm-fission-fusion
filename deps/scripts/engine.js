@@ -4,9 +4,9 @@
  * beforehand.
  *
  * Arguments:
- *     canvasID - string of the ID to make the Pixi.js library
+ *     
  */
-function GameEngine (canvasID, canvasWidth, canvasHeight) {
+function GameEngine (canvasWidth, canvasHeight) {
     /*
     Default PIXI Renderer Options (PIXI.DEFAULT_RENDER_OPTIONS):
         Name   |   Type   |   Default Value
@@ -68,13 +68,28 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
     */
     // HTML Elements
     var renderer = PIXI.autoDetectRenderer (canvasWidth, canvasHeight), // PIXI renderer
-        scene = new PIXI.Container ();                                  // Scene container
+        activeScene = 'SCENE_DNE', // Empty scene string
+        scenes = {'SCENE_DNE': new PIXI.Container ()}, // All scenes stored in the Game Engine
+        events = {}; // Stores all events as boolean flags to determine if something has happened
+
 
     // Game Engine Variables
-    var activeAnimations = [];
+    var activeAnimations = [],
+        inGameEvents = {};      // Used to determine speeches and so on
+
+    /* Function that adds a new scene to the game engine. Existing scenes are overwritten. */
+    this.addScene = function (name) {
+        scenes[name] = new PIXI.Container ();
+        return this;
+    }
+
+    /* Function that gets a scene by name, or a new container */
+    this.getScene = function (name) {
+        return scenes[name] || new PIXI.Container ();
+    }
 
     /* Function that updates everything in the engine */
-    this.tick = function (i) {
+    this.update = function (i) {
 
     };
 
@@ -83,8 +98,138 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
         return renderer.view;
     };
 
+    /* Resizes the canvas to the new dimensions specified */
+    this.resizeCanvas = function (width, height) {
+        renderer.resize (width, height);
+        return this;
+    };
+
+    /* Renders the current state of the game to the PIXI canvas */
+    this.render = function () {
+        renderer.render (scenes[activeScene]);
+        return this;
+    };
+
     /**
-     * Animation object that handles all of the tweening for the manipulation of a number or color from one state to another.
+     * Instantiates a new movable character in the open world of Pokemon. Used as a parent class
+     * for other more specific characters.
+     *
+     * Argument Options:
+     *     charFrontTextures -
+     *     charBackTextures  -
+     *     charLeftTextures  -
+     *     charRightTextures -
+     *     charType          -
+     *     charGender        -
+     *     charName          -
+     *     charHeight        -
+     *     child             -
+     */
+    this.Character = function (opts) {
+        var opts = opts || {}, char = opts.child || this,
+
+            // View sprites
+            FRONT = 0,
+            BACK  = 1,
+            LEFT  = 2,
+            RIGHT = 3,
+
+            // Movement states
+            STANDING = 0,
+            WALKING = 1,
+            RUNNING = 2,
+            BIKING = 3,
+            SURFING = 4,
+            FLYING = 5,
+            FISHING = 6,
+
+            // Walking sprites
+            STILL0 = 0,
+            STEP1  = 1,
+            STILL1 = 2,
+            STEP2  = 3,
+
+            // Running sprites
+            RSTILL0 = 0,
+            RSTEP1  = 1,
+            RSTILL1 = 2,
+            RSTEP2  = 3,
+
+            // Biking sprites
+            LEANING = 0,
+            PEDAL1  = 1,
+            PEDAL2  = 2,
+            PEDAL3  = 3,
+
+            // Surfing/Fly sprite
+            HM_ING = 0;
+
+            // Fishing sprites
+        
+        // Set the member variables to the char defined in the options object
+        char.id = opts.charID || 'john_doe',
+        char.fTextures = './deps/images/characters/' + char.id + '/front';
+        char.bTextures = './deps/images/characters/' + char.id + '/back';
+        char.lTextures = './deps/images/characters/' + char.id + '/left';
+        char.rTextures = './deps/images/characters/' + char.id + '/right';
+        char.bTextures = './deps/images/characters/' + char.id + '/battle';
+        char.type = opts.charType || 'DEFAULT';
+        char.gender = opts.charGender || 'MALE';
+        char.name = opts.charName || 'John Doe';
+        char.height = opts.charHeight || 2;
+
+        // Default view is front view
+        char.view = FRONT;
+
+        // Movement member variables and sprite positioning
+        char.movement = STANDING;
+
+        // Coordinates of the character with respect to the origin of the world map
+        char.x = 0;
+        char.y = 0;
+
+        // Rotates the texture of view based on the incoming movement command
+        char.rotate = function (direction) {
+            switch (direction) {
+                case 'UP':
+                    char.view = BACK;
+                    break;
+                case 'DOWN':
+                    char.view = FRONT;
+                    break;
+                case 'LEFT':
+                    char.view = LEFT;
+                    break;
+                case 'RIGHT':
+                    char.view = RIGHT;
+                    break;
+            }
+
+            return this;
+        };
+
+        // Rotates the view texture to display the walking animation
+        char.walk = function (direction) {
+
+        };
+
+        function mod (x, y) {
+            var modulus = x % y;
+            return modulus < 0? y + modulus : modulus;
+        };
+    };
+
+    /**
+     * Instantiates a new battle scene with two GameEngine.Character objects
+     */
+    this.BattleScene = function (char1, char2, backgroundImageURL) {
+
+    };
+
+    /**
+     * LinearAnimation object that handles all of the tweening for the manipulation of a number or color from one state to another
+     * along the Cartesion coordinate system. This movement is linear between the starting and ending value (not exactly linear 
+     * for colors, but does not oscilate in unexpected ways).
      * Color arrays are tweened using RGB -> XYZ -> CIE-L*ab -> *interpolation* -> CIE-L*ab' -> XYZ' -> RGB'
      *
      * Arguments:
@@ -93,23 +238,26 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
      *     val  - the starting value. if typeof val is not number, it will be treated as an RGB array in the form [R, G, B]
      *            where R, G, and B are values in the range [0, 255]
      *     end  - the ending value for val. if val is a number and end is not a number, error.
+     *     name - the name of the animation
      *     func - interpolation function whose domain and range are [0, 1] for non-linear animation, if any (linear assumed).
      */
-    function Animation (time, num, val, end, func) {
-        var t = time,
+    function LinearAnimation (time, num, val, end, name, func) {
+        var i = 0,
+            canceled = false,
+            t = time,
             n = num,
             v0 = val,
             e = end,
-            f = func || function (a) {return i < 0? 0 : a;},
-            cT = v.length === e.length === 3? new ColorTweener (v, e, n) : false; // cT = use color tweener flag
+            f = func || function (a) {return a < 0? 0 : a > 1? 1 : a;},
+            cT = v0.length === e.length === 3? new ColorTweener (v0, e, n) : false; // cT = use color tweener flag
 
         // Simple defensive type check to prevent hours of simple mistakes
-        if (!cT && (!isNaN (+v) && !isNaN (+e))) throw "Start and end value are not the same!";
+        if (!cT && (!isNaN (+v0) && !isNaN (+e))) throw "Start and end value are not the same!";
 
         /* Returns the animation state at the specified time; returns NaN if (time - t) > n, value at time otherwise */
         this.valueAt = function (time, hex) {
-            var i = time - t, v;
-            if (i > n) return NaN;
+            i = time - t;
+            if (i > n || canceled) return NaN;
 
             // Color interpolation
             else if (cT) return cT.colorAt (i, hex);
@@ -117,97 +265,23 @@ function GameEngine (canvasID, canvasWidth, canvasHeight) {
             // Numerical interpolation
             else return (1 - f(i / n)) * v0 + f(i / n) * e;
         };
-    }
 
-    /**
-     * RGB Color Tweener that fades from the starting color to the ending color through the CIE-L*ab color space. Does
-     * not require a starting time because of rk4 time integration.
-     */
-    function ColorTweener (sRGB, eRGB, num) {
-        var sLab = xyzToLab (rgbToXYZ (sRGB)),
-            eLab = xyzToLab (rgbToXYZ (eRGB)),
-            n = num;
-
-        // Returns the color interpolation at i
-        this.colorAt = function (i, hex) {
-            if (i < 0) i = 0;
-            var q = 1 - i / n, p = i / n,
-                cRGB = xyzToRGB (labToXYZ ([q * sLab[0] + p * eLab[0], q * sLab[1] + p * eLab[1], q * sLab[2] + p * eLab[2]]));
-            
-            return hex? toHexValue (cRGB) : cRGB;
+        // Resets this animation to its initial point by updating the recorded time of initialization
+        this.reset = function (time) {
+            t = time;
+            return this;
         };
 
-        // Returns the current rgb value as its numerical value in [0, 16777215]
-        function toHexValue (cRGB) {
-            return cRGB[0] * 65536 + cRGB[1] * 256 + cRGB[2];
-        };
-
-        // Returns the array corresponding the xyz values of the input rgb array
-        function rgbToXYZ (rgb) {
-            var R = rgb[0] / 255,
-                G = rgb[1] / 255,
-                B = rgb[2] / 255;
-
-            R = 100 * (R > 0.04045? Math.pow ((R + 0.055) / 1.055, 2.4) : R / 12.92);
-            G = 100 * (G > 0.04045? Math.pow ((G + 0.055) / 1.055, 2.4) : G / 12.92);
-            B = 100 * (B > 0.04045? Math.pow ((B + 0.055) / 1.055, 2.4) : B / 12.92);
-
-            var X = R * 0.4124 + G * 0.3576 + B * 0.1805,
-                Y = R * 0.2126 + G * 0.7152 + B * 0.0722,
-                Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
-
-            return [X, Y, Z];
+        // Permanently cancels this animation object
+        this.cancel = function () {
+            canceled = true;
+            return this;
         }
 
-        // Returns the array corresponding to the CIE-L*ab values of the input xyz array
-        function xyzToLab (xyz) {
-            var X = xyz[0] / 95.047,
-                Y = xyz[1] / 100,
-                Z = xyz[2] / 108.883,
-                T = 1 / 3,
-                K = 16 / 116;
+        // Allows for identification of the animation
+        this.animationName = name;
 
-            X = X > 0.008856? Math.pow (X, T) : (7.787 * X) + K;
-            Y = Y > 0.008856? Math.pow (Y, T) : (7.787 * Y) + K;
-            Z = Z > 0.008856? Math.pow (Z, T) : (7.787 * Z) + K;
-
-            var L = (116 * Y) - 16,
-                a = 500 * (X - Y),
-                b = 200 * (Y - Z);
-
-            return [L, a, b];
-        }
-
-        // Returns the array corresponding to the xyz values of the input CIE-L*ab array
-        function labToXYZ (Lab) {
-            var Y = (Lab[0] + 16) / 116,
-                X = Lab[1] / 500 + Y,
-                Z = Y - Lab[2] / 200,
-                K = 16 / 116;
-
-            X = 95.047 * ((X * X * X) > 0.008856? X * X * X : (X - K) / 7.787);
-            Y = 100 * ((Y * Y * Y) > 0.008856? Y * Y * Y : (Y - K) / 7.787);
-            Z = 108.883 * ((Z * Z * Z) > 0.008856? Z * Z * Z : (Z - K) / 7.787);
-
-            return [X, Y, Z];
-        }
-
-        // Returns the array corresponding to the rgb values of the input xyz array
-        function xyzToRGB (xyz) {
-            var X = xyz[0] / 100,
-                Y = xyz[1] / 100,
-                Z = xyz[2] / 100,
-                T = 1 / 2.4;
-
-            var R = X *  3.2406 + Y * -1.5372 + Z * -0.4986,
-                G = X * -0.9689 + Y *  1.8758 + Z *  0.0415,
-                B = X *  0.0557 + Y * -0.2040 + Z *  1.0570;
-
-            R = 255 * (R > 0.0031308? 1.055 * Math.pow (R, T) - 0.055 : 12.92 * R);
-            G = 255 * (G > 0.0031308? 1.055 * Math.pow (G, T) - 0.055 : 12.92 * G);
-            B = 255 * (B > 0.0031308? 1.055 * Math.pow (B, T) - 0.055 : 12.92 * B);
-
-            return [R, G, B];
-        }
+        /* Returns the progress of the animation in a percentage as decimal representation */
+        this.progress = function () {return canceled? NaN : i / n;};
     }
 }
