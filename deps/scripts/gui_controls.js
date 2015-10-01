@@ -1,266 +1,62 @@
-var gui = require ('nw.gui');
+var gui = require ('nw.gui'), engine;
 
+// Stuff to do on DOM load
 window.addEventListener ('load', function load () {
 	window.removeEventListener ('load', load, false);
 	initDOMConstruction ();
 });
 
+// Window resize handler
+window.addEventListener ('resize', function () {if (domConstructed) {
+	engine.resizeCanvas (window.innerWidth, window.innerHeight - 35);
+}});
+
+
 /**
- * Constructs the window UI functionality through DOM manipulation.
+ * Constructs the window UI functionality through DOM manipulation. All other dependencies should be loaded by now.
  */
+var domConstructed = false;
 function initDOMConstruction () {
 	initWindowButtons ();
-	initKeyboard ();
-	/*var win = gui.Window.get ();
-	for (var prop in win) {
-		console.log ('gui.Window.get ().' + prop + '(' + win[prop] + ')');
-	}*/
+	engine = new GameEngine (window.innerWidth, window.innerHeight - 35);
+
+	// Append the canvas to the DOM
+	var windowWrapper = document.getElementById ('window_wrapper');
+	windowWrapper.appendChild (engine.getCanvas ());
+
+	// Testing the loader (reset the loader using loader.reset () for loading assets in different parts of the game)
+	var loader = PIXI.loader;
+	loader.add ('arcanine', 'deps/images/as404.png').load (function (loader, resources) {
+		var sprite = new PIXI.Sprite (resources.arcanine.texture);
+		sprite.anchor.x = 0.5;
+		sprite.anchor.y = 0.5;
+		sprite.position.x = window.innerWidth / 2;
+		sprite.position.y = (window.innerHeight - 35) / 2;
+
+		engine.getScene ('SCENE_DNE').addChild (sprite);
+		engine.render ();
+	});
 
 	// gui.Window.get ().showDevTools ();
+	domConstructed = true;
 }
-
-/**
- * Initializes keyboard input. Assumes a QWERTY layout.
- */
-function initKeyboard (engine) {
-
-	var BACKSPACE = 8,    PAUSE   = 19,   PAGE_DOWN   = 34,   DOWN_ARROW = 40,   NUM_2 = 50,   NUM_8 = 56,   LTR_E = 69,
-		TAB       = 9,    BREAK   = 3,    END         = 35,   PRNT_SCRN  = 44,   NUM_3 = 51,   NUM_9 = 57,   LTR_F = 70,
-		ENTER     = 13,   CAPS    = 20,   HOME        = 36,   INSERT     = 45,   NUM_4 = 52,   LTR_A = 65,   LTR_G = 71,
-		SHIFT     = 16,   ESC     = 27,   LEFT_ARROW  = 37,   DELETE     = 46,   NUM_5 = 53,   LTR_B = 66,   LTR_H = 72,
-		CTRL      = 17,   SPACE   = 32,   UP_ARROW    = 38,   NUM_0      = 48,   NUM_6 = 54,   LTR_C = 67,   LTR_I = 73,
-		ALT       = 18,   PAGE_UP = 33,   RIGHT_ARROW = 39,   NUM_1      = 49,   NUM_7 = 55,   LTR_D = 68,   LTR_J = 74,
-
-
-		LTR_K = 75,    LTR_Q = 81,    LTR_W = 87,     F3 = 114,    F9          = 120,    NUMPAD_0 = 96,     NUMPAD_6  = 102,
-		LTR_L = 76,    LTR_R = 82,    LTR_X = 88,     F4 = 115,    F10         = 121,    NUMPAD_1 = 97,     NUMPAD_7  = 103,
-		LTR_M = 77,    LTR_S = 83,    LTR_Y = 89,     F5 = 116,    F11         = 122,    NUMPAD_2 = 98,     NUMPAD_8  = 104,
-		LTR_N = 78,    LTR_T = 84,    LTR_Z = 90,     F6 = 117,    F12         = 123,    NUMPAD_3 = 99,     NUMPAD_9  = 105,
-		LTR_O = 79,    LTR_U = 85,    F1    = 112,    F7 = 118,    NUM_LOCK    = 144,    NUMPAD_4 = 100,    COMMA_LT  = 188,
-		LTR_P = 80,    LTR_V = 86,    F2    = 113,    F8 = 119,    SCROLL_LOCK = 145,    NUMPAD_5 = 101,    PERIOD_GT = 190,
-
-		_FSLASH_QM       = 191,    MUTE_TOGGLE  = 173,   LITERAL = 0,
-		_BTICK_TILDE     = 192,    VOLUME_DOWN  = 174,   PRESSED = 1,
-		_OBRACKET_OBRACE = 219,    VOLUME_UP    = 175,
-		_BSLASH_PIPE     = 220,    __SEMI_COLON = 186,
-		_CBRACKET_CBRACE = 221,    _PLUS_EQUALS = 187,
-		_SQUOTE_DQUOTE   = 222,    _HYPHEN_UND_ = 189;
-
-	// Used to transform each key code into its literal representation in JavaScript, or string label if literal not available.
-	// Also used to keep track of actively pressed down keys. Note that some keys do not have a down press, only up press.
-	var keyMap = {}, logger = new ActiveKeyLogger ();
-
-	// Map the keys according to the pre-defined key code variables, and false for pressed down
-	keyMap[_FSLASH_QM] = ['/-?', false];
-	keyMap[_BTICK_TILDE] = ['`-~', false];
-	keyMap[_OBRACKET_OBRACE] = ['[-{', false];
-	keyMap[_BSLASH_PIPE] = ['\\-|', false];
-	keyMap[_CBRACKET_CBRACE] = [']-}', false];
-	keyMap[_SQUOTE_DQUOTE] = ["'-\"", false];
-	keyMap[MUTE_TOGGLE] = ['MUTETOGGLE', false];
-	keyMap[VOLUME_UP] = ['VOLUMEUP', false];
-	keyMap[VOLUME_DOWN] = ['VOLUMEDOWN', false];
-	keyMap[__SEMI_COLON] = [';-:', false];
-	keyMap[_PLUS_EQUALS] = ['=-+', false];
-	keyMap[_HYPHEN_UND_] = ['--_', false];
-
-	keyMap[COMMA_LT] = [',-<', false];
-	keyMap[PERIOD_GT] = ['.->', false];
-
-	keyMap[NUM_LOCK] = ['NUMLOCK', false];
-	keyMap[SCROLL_LOCK] = ['SCROLLLOCK', false];
-
-	keyMap[F1] = ['F1', false];
-	keyMap[F2] = ['F2', false];
-	keyMap[F3] = ['F3', false];
-	keyMap[F4] = ['F4', false];
-	keyMap[F5] = ['F5', false];
-	keyMap[F6] = ['F6', false];
-	keyMap[F7] = ['F7', false];
-	keyMap[F8] = ['F8', false];
-	keyMap[F9] = ['F9', false];
-	keyMap[F10] = ['F10', false];
-	keyMap[F11] = ['F11', false];
-	keyMap[F12] = ['F12', false];
-
-	keyMap[LTR_A] = ['a-A', false];
-	keyMap[LTR_B] = ['b-B', false];
-	keyMap[LTR_C] = ['c-C', false];
-	keyMap[LTR_D] = ['d-D', false];
-	keyMap[LTR_E] = ['e-E', false];
-	keyMap[LTR_F] = ['f-F', false];
-	keyMap[LTR_G] = ['g-G', false];
-	keyMap[LTR_H] = ['h-H', false];
-	keyMap[LTR_I] = ['i-I', false];
-	keyMap[LTR_J] = ['j-J', false];
-	keyMap[LTR_K] = ['k-K', false];
-	keyMap[LTR_L] = ['l-L', false];
-	keyMap[LTR_M] = ['m-M', false];
-	keyMap[LTR_N] = ['n-N', false];
-	keyMap[LTR_O] = ['o-O', false];
-	keyMap[LTR_P] = ['p-P', false];
-	keyMap[LTR_Q] = ['q-Q', false];
-	keyMap[LTR_R] = ['r-R', false];
-	keyMap[LTR_S] = ['s-S', false];
-	keyMap[LTR_T] = ['t-T', false];
-	keyMap[LTR_U] = ['u-U', false];
-	keyMap[LTR_V] = ['v-V', false];
-	keyMap[LTR_W] = ['w-W', false];
-	keyMap[LTR_X] = ['x-X', false];
-	keyMap[LTR_Y] = ['y-Y', false];
-	keyMap[LTR_Z] = ['z-Z', false];
-
-	keyMap[NUMPAD_0] = ['0', false];
-	keyMap[NUMPAD_1] = ['1', false];
-	keyMap[NUMPAD_2] = ['2', false];
-	keyMap[NUMPAD_3] = ['3', false];
-	keyMap[NUMPAD_4] = ['4', false];
-	keyMap[NUMPAD_5] = ['5', false];
-	keyMap[NUMPAD_6] = ['6', false];
-	keyMap[NUMPAD_7] = ['7', false];
-	keyMap[NUMPAD_8] = ['8', false];
-	keyMap[NUMPAD_9] = ['9', false];
-
-	keyMap[NUM_0] = ['0-)', false];
-	keyMap[NUM_1] = ['1-!', false];
-	keyMap[NUM_2] = ['2-@', false];
-	keyMap[NUM_3] = ['3-#', false];
-	keyMap[NUM_4] = ['4-$', false];
-	keyMap[NUM_5] = ['5-%', false];
-	keyMap[NUM_6] = ['6-^', false];
-	keyMap[NUM_7] = ['7-&', false];
-	keyMap[NUM_8] = ['8-*', false];
-	keyMap[NUM_9] = ['9-(', false];
-
-	keyMap[INSERT] = ['INSERT', false];
-	keyMap[DELETE] = ['DELETE', false];
-
-	keyMap[BACKSPACE] = ['BACKSPACE', false];
-	keyMap[TAB] = ['TAB', false];
-	keyMap[ENTER] = ['ENTER', false];
-	keyMap[SHIFT] = ['SHIFT', false];
-	keyMap[CTRL] = ['CTRL', false];
-	keyMap[ALT] = ['ALT', false];
-
-	keyMap[PAUSE] = ['PAUSE', false];
-	keyMap[BREAK] = ['BREAK', false];
-	keyMap[CAPS] = ['CAPS', false];
-	keyMap[ESC] = ['ESC', false];
-	keyMap[SPACE] = ['SPACE', false];
-
-	keyMap[PAGE_UP] = ['PAGEUP', false];
-	keyMap[PAGE_DOWN] = ['PAGEDOWN', false];
-	keyMap[END] = ['END', false];
-	keyMap[HOME] = ['HOME', false];
-
-	keyMap[UP_ARROW] = ['UP', false];
-	keyMap[LEFT_ARROW] = ['LEFT', false];
-	keyMap[DOWN_ARROW] = ['DOWN', false];
-	keyMap[RIGHT_ARROW] = ['RIGHT', false];
-
-	document.onkeydown = function (e) {
-		var elem = document.getElementById ('keyboard_literal'),
-			key = e.keyCode;
-
-		if (keyMap[key]) {
-			keyMap[key][PRESSED] = true;
-			logger.appendKey (key);
-		}
-
-		elem.innerHTML = shift (key) || 'unknown e.keyCode -> ' + key;
-		elem.setAttribute ('class', 'not_null');
-
-		document.getElementById ('keyboard_input').innerHTML = key;
-		document.getElementById ('keyboard_active').innerHTML = logger.activeKeys ().join (' + ');
-	};
-
-	document.onkeyup = function (e) {
-		var elem = document.getElementById ('keyboard_literal'),
-			key = e.keyCode;
-
-		if (keyMap[key]) {
-			keyMap[key][PRESSED] = false;
-			logger.popKey (key);
-		}
-
-		elem.innerHTML = shift (key) || 'unknown e.keyCode -> ' + key;
-		elem.setAttribute ('class', 'null');
-
-		document.getElementById ('keyboard_input').innerHTML = key;
-		document.getElementById ('keyboard_active').innerHTML = logger.activeKeys ().join (' + ');
-	}
-
-	// Shifts the keyCode literal according to the qwerty keyboard map if the key can be shifted and the shift key is pressed
-	function shift (keyCode) {
-		if (keyMap[keyCode][LITERAL].charAt (1) === '-') {
-			if (keyMap[SHIFT][PRESSED]) return keyMap[keyCode][LITERAL].charAt (2);
-			else return keyMap[keyCode][LITERAL].charAt (0);
-		}
-
-		// Return the literal stored in the keyMap if in the map, or null if it's not in the map
-		return keyMap[keyCode] && keyMap[keyCode][LITERAL] || null;
-	}
-
-	/**
-	 * Holds the keys that are active (pressed down) at any given time. Does not store the order that the keys were pressed,
-	 * exept modifier keys (shift, ctrl, alt). Those have to be pressed and held first. Stores the string representation rather
-	 * as a value of the keyCode. Use a for-in loop for this.
-	 */
-	function ActiveKeyLogger () {
-		var actives = {},
-			modQ = [],
-			i;
-
-		// Since only one key can be physicall pressed down at any time, disregard duplicates from auto-repeat
-		this.appendKey = function (key) {
-			var check1 = key === SHIFT || key === CTRL || key === ALT,
-				i = modQ.indexOf (keyMap[key][LITERAL]);
-
-			// The keyup event wasn't fired, so the modifier is still in the modQ even though it shouldn't
-			if (check1 && i >= 0) modQ.splice (i, 1);
-
-			// Standard checks for active pressing
-			if (check1 && i < 0) modQ.push (keyMap[key][LITERAL]);
-
-			else if (!actives[key]) actives[key] = shift (key);
-
-			return this;
-		}
-
-		// Removes a key from the active selection
-		this.popKey = function (key) {
-			if ((key===SHIFT||key===CTRL||key===ALT) && (i = modQ.indexOf(keyMap[key][LITERAL])) >= 0) modQ.splice(i, 1);
-			else if (actives[key]) delete actives[key];
-
-			return this;
-		}
-
-		// Returns an array of all modifier keys + non-modifier keys actively pressed
-		this.activeKeys = function () {
-			var active = [];
-			for (var p in actives) active.push (actives[p]);
-			return modQ.concat (active);
-		}
-	}
-}
-
-
 
 /**
  * Initializes the minimize, maximize, and close button functionality and animation upon hovering
  */
 function initWindowButtons () {
-
-	var maximize = true;
-
 	var minButton = document.getElementById ('window_minimize'),
 		minIconBn = document.getElementById ('window_min_icon'),
 		maxButton = document.getElementById ('window_maximize'),
 		maxIconBn = document.getElementById ('window_max_icon'),
 		clsButton = document.getElementById ('window_close'),
+		rldButton = document.getElementById ('window_reload'),
+		arrIconBn = document.getElementById ('window_reload_icon_arrow'),
+		cirIconBn = document.getElementById ('window_reload_icon_circle'),
 
 		sRGB = [68, 68, 68],
 		eRGB = [200, 200, 200],
+		wRGB = [255, 255, 255],
 		bRGB = [0, 0, 0],
 		xRGB = [220, 50, 50],
 		nSteps = 12,
@@ -270,7 +66,10 @@ function initWindowButtons () {
 			minIconBn: [true, false, new ColorTweener (eRGB, bRGB, nSteps), 0],
 			maxButton: [true, false, new ColorTweener (sRGB, eRGB, nSteps), 0],
 			maxIconBn: [true, false, new ColorTweener (eRGB, bRGB, nSteps), 0],
-			clsButton: [true, false, new ColorTweener (sRGB, xRGB, nSteps), 0]
+			clsButton: [true, false, new ColorTweener (sRGB, xRGB, nSteps), 0],
+			rldButton: [true, false, new ColorTweener (sRGB, eRGB, nSteps), 0],
+			arrIconBn: [true, false, new ColorTweener (eRGB, bRGB, nSteps), 0],
+			cirIconBn: [true, false, new ColorTweener (wRGB, bRGB, nSteps), 0]
 		},
 
 		// Index names for readability
@@ -280,6 +79,7 @@ function initWindowButtons () {
 		I = 3,
 		fadeFunctionActive = false;
 
+	// Minimize button mechanics
 	minButton.onclick = function () {
 		gui.Window.get ().minimize ();
 	};
@@ -294,6 +94,8 @@ function initWindowButtons () {
 		instantiateButtonFade ('minIconBn', false);
 	});
 
+	// Maximize button mechanics
+	var maximize = true;
 	maxButton.onclick = function () {
 		if (maximize) gui.Window.get ().maximize ();
 		else gui.Window.get ().unmaximize ();
@@ -310,6 +112,7 @@ function initWindowButtons () {
 		instantiateButtonFade ('maxIconBn', false);
 	});
 
+	// Close button mechanics
 	clsButton.onclick = function () {
 		window.close ();
 	};
@@ -322,30 +125,63 @@ function initWindowButtons () {
 		instantiateButtonFade ('clsButton', false);
 	});
 
+	// Reload button mechanics
+	rldButton.onclick = function () {
+		location.reload ();
+	}
+
+	rldButton.addEventListener ('mouseenter', function () {
+		instantiateButtonFade ('rldButton', true);
+		instantiateButtonFade ('arrIconBn', true);
+		instantiateButtonFade ('cirIconBn', true);
+	});
+
+	rldButton.addEventListener ('mouseleave', function () {
+		instantiateButtonFade ('rldButton', false);
+		instantiateButtonFade ('arrIconBn', false);
+		instantiateButtonFade ('cirIconBn', false);
+	});
+
 	// Mouseenter/mouseleave handler function for all buttons
+	var activatedFadeFunction = false;
 	function instantiateButtonFade (button, direction) {
 		// Change the direction of the animation to positive and mark it as animating
 		hoverDirs[button][POSITIVELY] = direction;
 		hoverDirs[button][ANIMATING] = true;
 
 		// Prevent calling fadeWindowButtons function if function is already animating
-		if (!fadeFunctionActive) {
-			fadeFunctionActive = true;
+		if (!fadeFunctionActive && !activatedFadeFunction) {
+			activatedFadeFunction = true;
 			fadeWindowButtons ();
+			activatedFadeFunction = false;
 		}
 	}
 
 	function fadeWindowButtons () {
 		var miB = hoverDirs.minButton,
 			miI = hoverDirs.minIconBn,
+
 			maB = hoverDirs.maxButton,
 			maI = hoverDirs.maxIconBn,
-			clB = hoverDirs.clsButton;
+			
+			clB = hoverDirs.clsButton,
+			
+			rfB = hoverDirs.rldButton,
+			arI = hoverDirs.arrIconBn,
+			ciI = hoverDirs.cirIconBn;
 
 		if (miB[ANIMATING]) {
 			miB[I] += miB[POSITIVELY]? 1 : -1;
 			miI[I] += miB[POSITIVELY]? 1 : -1;
 
+			// Fix any overshooting issues caused by fast mouse movement
+			if (miB[I] > nSteps) miB[I] = nSteps;
+			else if (miB[I] < 0) miB[I] = 0;
+
+			if (miI[I] > nSteps) miI[I] = nSteps;
+			else if (miI[I] < 0) miI[I] = 0;
+
+			// Perform the necessary checks
 			miB[ANIMATING] = (miB[I] === nSteps) && miB[POSITIVELY]? false : (miB[I] === 0) && !miB[POSITIVELY]? false : true;
 			miI[ANIMATING] = (miI[I] === nSteps) && miI[POSITIVELY]? false : (miI[I] === 0) && !miI[POSITIVELY]? false : true;
 			
@@ -357,6 +193,14 @@ function initWindowButtons () {
 			maB[I] += maB[POSITIVELY]? 1 : -1;
 			maI[I] += maB[POSITIVELY]? 1 : -1;
 
+			// Fix any overshooting issues caused by fast mouse movement
+			if (maB[I] > nSteps) maB[I] = nSteps;
+			else if (maB[I] < 0) maB[I] = 0;
+			
+			if (maI[I] > nSteps) maI[I] = nSteps;
+			else if (maI[I] < 0) maI[I] = 0;
+
+			// Perform the necessary checks
 			maB[ANIMATING] = (maB[I] === nSteps) && maB[POSITIVELY]? false : (maB[I] === 0) && !maB[POSITIVELY]? false : true;
 			maI[ANIMATING] = (maI[I] === nSteps) && maI[POSITIVELY]? false : (maI[I] === 0) && !maI[POSITIVELY]? false : true;
 
@@ -366,15 +210,53 @@ function initWindowButtons () {
 
 		if (clB[ANIMATING]) {
 			clB[I] += clB[POSITIVELY]? 1 : -1;
+
+			// Fix any overshooting issues caused by fast mouse movement
+			if (clB[I] > nSteps) clB[I] = nSteps;
+			else if (clB[I] < 0) clB[I] = 0;
+
+			// Perform the necessary checks
 			clB[ANIMATING] = (clB[I] === nSteps) && clB[POSITIVELY]? false : (clB[I] === 0) && !clB[POSITIVELY]? false : true;
 			clsButton.style.backgroundColor = clB[COLOR_TW].colorAt (clB[I]);
 		}
 
-		if (!(miB[ANIMATING] || maB[ANIMATING] || clB[ANIMATING])) fadeFunctionActive = false;
+		if (rfB[ANIMATING]) {
+			rfB[I] += rfB[POSITIVELY]? 1 : -1;
+			arI[I] += rfB[POSITIVELY]? 1 : -1;
+			ciI[I] += rfB[POSITIVELY]? 1 : -1;
+
+			// Fix any overshooting issues caused by fast mouse movement
+			if (rfB[I] > nSteps) rfB[I] = nSteps;
+			else if (rfB[I] < 0) rfB[I] = 0;
+			
+			if (arI[I] > nSteps) arI[I] = nSteps;
+			else if (arI[I] < 0) arI[I] = 0;
+
+			if (ciI[I] > nSteps) ciI[I] = nSteps;
+			else if (ciI[I] < 0) ciI[I] = 0;
+
+			// Perform the necessary checks
+			rfB[ANIMATING] = (rfB[I] === nSteps) && rfB[POSITIVELY]? false : (rfB[I] === 0) && !rfB[POSITIVELY]? false : true;
+			arI[ANIMATING] = (arI[I] === nSteps) && arI[POSITIVELY]? false : (arI[I] === 0) && !arI[POSITIVELY]? false : true;
+			ciI[ANIMATING] = (ciI[I] === nSteps) && ciI[POSITIVELY]? false : (ciI[I] === 0) && !ciI[POSITIVELY]? false : true;
+
+			rldButton.style.backgroundColor = rfB[COLOR_TW].colorAt (rfB[I]);
+			arrIconBn.style.stroke = arI[COLOR_TW].colorAt (arI[I]);
+			cirIconBn.style.stroke = ciI[COLOR_TW].colorAt (ciI[I]);
+		}
+
+		if (!(miB[ANIMATING] || maB[ANIMATING] || clB[ANIMATING] || rfB[ANIMATING])) fadeFunctionActive = false;
 		else fadeFunctionActive = requestAnimationFrame (fadeWindowButtons);
 	}
 }
 
+/**
+ * RGB Color Tweener that linearly interpolates the starting and the ending color through the CIE-L*ab color space.
+ *
+ * Arguments:
+ *     sRGB, eRGB - Array in the format [0-255, 0-255, 0-255] specifying an RGB color
+ *     num - the number of frames that the color will be fading
+ */
 function ColorTweener (sRGB, eRGB, num) {
     var sLab = xyzToLab (rgbToXYZ (sRGB)),
         eLab = xyzToLab (rgbToXYZ (eRGB)),
