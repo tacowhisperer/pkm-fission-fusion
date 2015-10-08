@@ -8,7 +8,7 @@ window.addEventListener ('load', function load () {
 
 // Window resize handler
 window.addEventListener ('resize', function () {if (domConstructed) {
-	engine.resizeCanvas (window.innerWidth, window.innerHeight - 35);
+	engine.resizeCanvas (window.innerWidth, window.innerHeight - 35).render ();
 }});
 
 
@@ -25,19 +25,15 @@ function initDOMConstruction () {
 	windowWrapper.appendChild (engine.getCanvas ());
 
 	// Testing the loader (reset the loader using loader.reset () for loading assets in different parts of the game)
-	var loader = PIXI.loader;
-	loader.add ('arcanine', 'deps/images/as404.png').load (function (loader, resources) {
+	PIXI.loader.add ('arcanine', 'deps/images/as404.png').load (function (loader, resources) {
 		var sprite = new PIXI.Sprite (resources.arcanine.texture);
-		sprite.anchor.x = 0.5;
-		sprite.anchor.y = 0.5;
-		sprite.position.x = window.innerWidth / 2;
-		sprite.position.y = (window.innerHeight - 35) / 2;
+		sprite.anchor.set (0.5);
 
 		engine.getScene ('SCENE_DNE').addChild (sprite);
 		engine.render ();
 	});
 
-	// gui.Window.get ().showDevTools ();
+	gui.Window.get ().showDevTools ();
 	domConstructed = true;
 }
 
@@ -72,7 +68,7 @@ function initWindowButtons () {
 			cirIconBn: [true, false, new ColorTweener (wRGB, bRGB, nSteps), 0]
 		},
 
-		// Index names for readability
+		// Index names of hoverDirs for readability
 		POSITIVELY = 0,
 		ANIMATING = 1,
 		COLOR_TW  = 2,
@@ -160,86 +156,36 @@ function initWindowButtons () {
 	function fadeWindowButtons () {
 		var miB = hoverDirs.minButton,
 			miI = hoverDirs.minIconBn,
-
 			maB = hoverDirs.maxButton,
 			maI = hoverDirs.maxIconBn,
-			
 			clB = hoverDirs.clsButton,
-			
 			rfB = hoverDirs.rldButton,
 			arI = hoverDirs.arrIconBn,
 			ciI = hoverDirs.cirIconBn;
 
+		// Tweens the animation for the minimize button and the minimize button icon
 		if (miB[ANIMATING]) {
-			miB[I] += miB[POSITIVELY]? 1 : -1;
-			miI[I] += miB[POSITIVELY]? 1 : -1;
-
-			// Fix any overshooting issues caused by fast mouse movement
-			if (miB[I] > nSteps) miB[I] = nSteps;
-			else if (miB[I] < 0) miB[I] = 0;
-
-			if (miI[I] > nSteps) miI[I] = nSteps;
-			else if (miI[I] < 0) miI[I] = 0;
-
-			// Perform the necessary checks
-			miB[ANIMATING] = (miB[I] === nSteps) && miB[POSITIVELY]? false : (miB[I] === 0) && !miB[POSITIVELY]? false : true;
-			miI[ANIMATING] = (miI[I] === nSteps) && miI[POSITIVELY]? false : (miI[I] === 0) && !miI[POSITIVELY]? false : true;
-			
+			step (miB, miI);
 			minButton.style.backgroundColor = miB[COLOR_TW].colorAt (miB[I]);
 			minIconBn.style.borderBottom = '1px solid ' + miI[COLOR_TW].colorAt (miI[I]);
 		}
 
+		// Tweens the animation of the maximize button and the maximize button icon
 		if (maB[ANIMATING]) {
-			maB[I] += maB[POSITIVELY]? 1 : -1;
-			maI[I] += maB[POSITIVELY]? 1 : -1;
-
-			// Fix any overshooting issues caused by fast mouse movement
-			if (maB[I] > nSteps) maB[I] = nSteps;
-			else if (maB[I] < 0) maB[I] = 0;
-			
-			if (maI[I] > nSteps) maI[I] = nSteps;
-			else if (maI[I] < 0) maI[I] = 0;
-
-			// Perform the necessary checks
-			maB[ANIMATING] = (maB[I] === nSteps) && maB[POSITIVELY]? false : (maB[I] === 0) && !maB[POSITIVELY]? false : true;
-			maI[ANIMATING] = (maI[I] === nSteps) && maI[POSITIVELY]? false : (maI[I] === 0) && !maI[POSITIVELY]? false : true;
-
+			step (maB, maI);
 			maxButton.style.backgroundColor = maB[COLOR_TW].colorAt (maB[I]);
 			maxIconBn.style.border = '1px solid ' + maI[COLOR_TW].colorAt (maI[I]);
 		}
 
+		// Tweens the animation of the close button
 		if (clB[ANIMATING]) {
-			clB[I] += clB[POSITIVELY]? 1 : -1;
-
-			// Fix any overshooting issues caused by fast mouse movement
-			if (clB[I] > nSteps) clB[I] = nSteps;
-			else if (clB[I] < 0) clB[I] = 0;
-
-			// Perform the necessary checks
-			clB[ANIMATING] = (clB[I] === nSteps) && clB[POSITIVELY]? false : (clB[I] === 0) && !clB[POSITIVELY]? false : true;
+			step (clB);
 			clsButton.style.backgroundColor = clB[COLOR_TW].colorAt (clB[I]);
 		}
 
+		// Tweens the animation of the reload button and the reload icon's individual components
 		if (rfB[ANIMATING]) {
-			rfB[I] += rfB[POSITIVELY]? 1 : -1;
-			arI[I] += rfB[POSITIVELY]? 1 : -1;
-			ciI[I] += rfB[POSITIVELY]? 1 : -1;
-
-			// Fix any overshooting issues caused by fast mouse movement
-			if (rfB[I] > nSteps) rfB[I] = nSteps;
-			else if (rfB[I] < 0) rfB[I] = 0;
-			
-			if (arI[I] > nSteps) arI[I] = nSteps;
-			else if (arI[I] < 0) arI[I] = 0;
-
-			if (ciI[I] > nSteps) ciI[I] = nSteps;
-			else if (ciI[I] < 0) ciI[I] = 0;
-
-			// Perform the necessary checks
-			rfB[ANIMATING] = (rfB[I] === nSteps) && rfB[POSITIVELY]? false : (rfB[I] === 0) && !rfB[POSITIVELY]? false : true;
-			arI[ANIMATING] = (arI[I] === nSteps) && arI[POSITIVELY]? false : (arI[I] === 0) && !arI[POSITIVELY]? false : true;
-			ciI[ANIMATING] = (ciI[I] === nSteps) && ciI[POSITIVELY]? false : (ciI[I] === 0) && !ciI[POSITIVELY]? false : true;
-
+			step (rfB, arI, ciI);
 			rldButton.style.backgroundColor = rfB[COLOR_TW].colorAt (rfB[I]);
 			arrIconBn.style.stroke = arI[COLOR_TW].colorAt (arI[I]);
 			cirIconBn.style.stroke = ciI[COLOR_TW].colorAt (ciI[I]);
@@ -247,6 +193,22 @@ function initWindowButtons () {
 
 		if (!(miB[ANIMATING] || maB[ANIMATING] || clB[ANIMATING] || rfB[ANIMATING])) fadeFunctionActive = false;
 		else fadeFunctionActive = requestAnimationFrame (fadeWindowButtons);
+	
+		// Helper function for stepping the hoverDirs.[button].I to its next state for all buttons
+		function step () {
+			for (var i = 0; i < arguments.length; i++) {
+				// Step initialization and directional change
+				var b = arguments[i];
+				b[I] += b[POSITIVELY]? 1 : -1;
+
+				// Ensures values do not exceed lower and upper bounds
+				if (b[I] > nSteps) b[I] = nSteps;
+				else if (b[I] < 0) b[I] = 0;
+
+				// End the button animation if reached max value in respective direction to help performance
+				b[ANIMATING] = (b[I] === nSteps) && b[POSITIVELY]? false : (b[I] === 0) && !b[POSITIVELY]? false : true;
+			}
+		}
 	}
 }
 
