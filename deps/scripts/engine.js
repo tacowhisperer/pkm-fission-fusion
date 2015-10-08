@@ -68,29 +68,69 @@ function GameEngine (canvasWidth, canvasHeight) {
     */
     // HTML Elements
     var renderer = PIXI.autoDetectRenderer (canvasWidth, canvasHeight), // PIXI renderer
+        eWidth = canvasWidth, // engine width (same as canvas width)
+        eHeight = canvasHeight, // engine height (same as canvas height)
         activeScene = 'SCENE_DNE', // Empty scene string
-        scenes = {'SCENE_DNE': new PIXI.Container ()}, // All scenes stored in the Game Engine
-        events = {}; // Stores all events as boolean flags to determine if something has happened
+        scenes = {'SCENE_DNE': new PIXI.Container ()}; // All scenes stored in the Game Engine, and all scenes are always centered
+
+        // Initialize SCENE_DNE to be in the center of the screen, and make all subsequent adds be centered
+        scenes['SCENE_DNE'].position.set (canvasWidth / 2, canvasHeight / 2);
+
+    // Stores all events as boolean flags to determine if something has happened
+    this.events = {};
 
 
     // Game Engine Variables
     var activeAnimations = [],
-        inGameEvents = {};      // Used to determine speeches and so on
+        inGameEvents = {};      // Used to determine speeches within characters and so on
 
-    /* Function that adds a new scene to the game engine. Existing scenes are overwritten. */
-    this.addScene = function (name) {
+    /* Returns the string of the active scene name */
+    this.getActiveScene = function () {return scenes[activeScene];};
+
+    /* Function that creates a new scene to the game engine. Existing scenes are overwritten. */
+    this.createScene = function (name) {
         scenes[name] = new PIXI.Container ();
+        scenes[name].position.set (eWidth / 2, eHeight / 2);
+        return this;
+    };
+
+    /* Function that chages the active scene to another existing scene, or creates it and sets it if it does not exist. */
+    this.setActiveScene = function (name) {
+        activeScene = name;
+        if (!scenes[name]) {
+            scenes[name] = new PIXI.Container ();
+            scenes[name].position.set (eWidth / 2, eHeight / 2);
+        }
         return this;
     }
 
-    /* Function that gets a scene by name, or a new container */
+    /* Function that gets a scene by name, or undefined if non-existent */
     this.getScene = function (name) {
-        return scenes[name] || new PIXI.Container ();
-    }
+        return scenes[name];
+    };
 
-    /* Function that updates everything in the engine */
-    this.update = function (i) {
+    /* Function that deletes a scene from the scenes object if it exists */
+    this.deleteScene = function (name) {
+        if (scenes[name]) delete scenes[name];
+        return this;
+    };
 
+    /* Function that returns the scenes object */
+    this.getScenes = function () {return scenes;};
+
+    /* Function that updates everything in the engine. Generates a time i through Runge-Kutta integration*/
+    var t_i, i_t = 0;
+    this.update = function () {
+        var FRAMES_PER_MS = 1 / 20,
+            dt = new Date ().getTime () - t_i,
+            i_t = rk4 (i_t, FRAMES_PER_MS, dt, function () {return 0;})[0];
+        return this;
+    };
+
+    /* Initializes the engine time variable for the update method */
+    this.initClock = function () {
+        t_i = new Date ().getTime ();
+        return this;
     };
 
     /* Returns the HTML canvas object for appending to the DOM */
@@ -101,6 +141,11 @@ function GameEngine (canvasWidth, canvasHeight) {
     /* Resizes the canvas to the new dimensions specified */
     this.resizeCanvas = function (width, height) {
         renderer.resize (width, height);
+        eWidth = width;
+        eHeight = height;
+        for (var scene in scenes) {
+            scenes[scene].position.set (width / 2, height / 2);
+        }
         return this;
     };
 
@@ -168,11 +213,15 @@ function GameEngine (canvasWidth, canvasHeight) {
         
         // Set the member variables to the char defined in the options object
         char.id = opts.charID || 'john_doe',
-        char.fTextures = './deps/images/characters/' + char.id + '/front';
-        char.bTextures = './deps/images/characters/' + char.id + '/back';
-        char.lTextures = './deps/images/characters/' + char.id + '/left';
-        char.rTextures = './deps/images/characters/' + char.id + '/right';
-        char.bTextures = './deps/images/characters/' + char.id + '/battle';
+
+
+        // Textures are stored at deps/images/characters/ [char.id] / [front, back, left, right, battle, etc.]
+        // char.id is the string that locates the texture in the global asset loader
+        char.fTextures = 'deps/images/characters/' + char.id + '/front';
+        char.bTextures = 'deps/images/characters/' + char.id + '/back';
+        char.lTextures = 'deps/images/characters/' + char.id + '/left';
+        char.rTextures = 'deps/images/characters/' + char.id + '/right';
+        char.bTextures = 'deps/images/characters/' + char.id + '/battle';
         char.type = opts.charType || 'DEFAULT';
         char.gender = opts.charGender || 'MALE';
         char.name = opts.charName || 'John Doe';
@@ -187,6 +236,9 @@ function GameEngine (canvasWidth, canvasHeight) {
         // Coordinates of the character with respect to the origin of the world map
         char.x = 0;
         char.y = 0;
+
+        // Scene information
+
 
         // Rotates the texture of view based on the incoming movement command
         char.rotate = function (direction) {
@@ -213,6 +265,9 @@ function GameEngine (canvasWidth, canvasHeight) {
 
         };
 
+        // Adds the character to a scene
+
+
         function mod (x, y) {
             var modulus = x % y;
             return modulus < 0? y + modulus : modulus;
@@ -225,6 +280,152 @@ function GameEngine (canvasWidth, canvasHeight) {
     this.BattleScene = function (char1, char2, backgroundImageURL) {
 
     };
+
+    /**
+     * Instantiates a new open world location where the main character is free to walk around and talk to
+     * other characters, find items, use HMs, continue story mode, encounter wild pokemon, etc. 
+     *
+     * It is structurally the same as a tree.
+     *
+     * Arguments and Options:
+     *     worldImage         - jpg, png, etc. of the walkable room/route/etc. Dimensions should be multiples
+     *                          of x pixels to identify each tile.
+     *     worldImageMetadata - JSON defining the collision/entry/exit points of tiles in worldImage as a Cartesian
+     *                          coordinate relative to each tile starting from the bottom left-hand corner
+     */
+    this.OpenWorld = function (worldImage, worldImageMetadata, opts, chars) {
+        // OpenWorld member variables
+        this.image = worldImage;
+        this.unpenatrable = worldImageMetadata.unpenatrable;
+        this.water = worldImageMetadata.water;
+        this.wildPokemon = worldImageMetadata.wildPokemon;
+        this.bigBoulders = worldImageMetadata.bigBoulders;
+        this.ledges = worldImageMetadata.ledges;
+
+        // OpenWorld children (rooms, subcaves, etc.)
+        this.children = [];
+
+        // OpenWorld characters, or empty (for dev purposes)
+        this.characters = chars || {};
+    };
+
+    /**
+     * Instantiates the engine event handler to simplify events. Allows for independent events (such as
+     * finding an item and it disappearing from the screen), or co-dependent events (such as acquiring
+     * a set of items for an event to "fire"). More methods will be added as deemed necessary.
+     *
+     * Arguments:
+     *     eventJSON - plain object with pre-written event names mapped to a plain object containing two member
+     *                 variables "parents" and "children", each which are arrays of the strings of the parent
+     *                 anc child events (adjacency list)
+     */
+    function EventHandler (eventJSON) {
+        var events = eventJSON || {
+        /*  eventName0: {
+                parents: ['parentEvent0', 'parentEvent1', ...],
+                children: ['child0', 'child1', ...],
+
+                // ADDED IN DURING CONSTRUCTION AND FOR INTERNAL USE ONLY
+                activationNumber: #,
+                fired: false // used to differentiate between an event being fired (increases children activation numbers)
+                             // vs being fireable (checks activation number)
+            }, ... */
+        };
+
+        // Add the internal representation variables to the events plain object
+        for (var ev in events) {
+            var evnt = events[ev];
+
+            evnt.parents = set (evnt.parents);
+            evnt.children = set (evnt.children);
+            evnt.activationNumber = evnt.parents.length;
+            evnt.fired = false;
+        }
+
+        // Adds an event to the events plain object, or overwrites them if they exist -> chainable
+        this.addEvent = function (name, parents, children) {
+            // Adds an isolated event (not dependent on other events and no events depend on it)
+            if (arguments.length === 1) events[name] = {parents: [], children: [], activationNumber: 0, fired: false}
+
+            // Both parents and children must be Arrays to add to the events object
+            else if (parents instanceof Array && children instanceof Array && typeof name == 'string') {
+                // creates the plain object in the events map
+                events[name] = {};
+
+                // sets the basic properties of the newly created plain object
+                var newEvent = events[name];
+                newEvent.parents = set (parents);
+                newEvent.children = set (children);
+                newEvent.activationNumber = newEvent.parents.length;
+                newEvent.fired = false;
+
+                // recursively add non-existent parents, or add properties to existing parent events
+                for (var i = 0; i < newEvent.parents.length; i++) {
+                    if (!events[newEvent.parents[i]]) this.addEvent (newEvent.parents[i], [], [name]);
+                    else events[newEvent.parents[i]].children.push (name);
+                }
+
+                // recursively add non-existing children, or add properties to existing children events
+                for (var i = 0; i < newEvent.children.length; i++) {
+                    if (!events[newEvent.children[i]]) this.addEvent (newEvent.children[i], [name], []);
+                    else {
+                        var childEvent = events[newEvent.children[i]];
+
+                        childEvent.parents.push (name);
+                        childEvent.activationNumber++;
+                        childEvent.fired = false;
+                    }
+                }
+            }
+
+            return this;
+        };
+
+        // Removes an event from the events plain object if it exists, does nothing otherwise -> chainable
+        this.removeEvent = function (name) {
+            if (events[name]) {
+                // Remove the event from the parents' children arrays
+                var eventParents = events[name].parents;
+                for (var i = 0; i < eventParents.length; i++) {
+                    var parentChildren = events[eventParents[i]].children;
+                    parentChildren.splice (parentChildren.indexOf (name), 1);
+                }
+
+                // Remove the event from its children's dependencies
+                var eventChildren = events[name].children;
+                for (var i = 0; i < eventChildren.length; i++) {
+                    var childrenParents = events[eventChildren[i]].parents;
+                    childrenParents.splice (childrenParents.indexOf (name), 1);
+
+                    // Reduce the child's activation number
+                    events[eventChildren[i]].activationNumber--;
+                }
+            }
+
+            return this;
+        };
+
+        // Attempts to fire an event, but remains false if activationNumber is not met -> chainable
+        this.fire = function (name) {
+
+            return this;
+        };
+
+        // Checks the status of an event -> boolean
+        this.isFired = function (name) {
+            return events[name].fired;
+        };
+
+        // Reduces an array to a set like in Python. Code taken from https://gist.github.com/brettz9/6137753
+        function set (array) {
+            return array.reduce (function (a, v) {if (a.indexOf (v) === -1) {a.push (v);} return a;}, []);
+        }
+
+        // Returns a human-readable adjacency list of the events stored in the event handler
+        this.toString = function () {
+            
+        };
+    }
 
     /**
      * LinearAnimation object that handles all of the tweening for the manipulation of a number or color from one state to another
@@ -284,4 +485,31 @@ function GameEngine (canvasWidth, canvasHeight) {
         /* Returns the progress of the animation in a percentage as decimal representation */
         this.progress = function () {return canceled? NaN : i / n;};
     }
+
+    /**
+     * Function that performs Runge-Kutta integration for a discrete value dt.
+     *
+     * Arguments:
+     *     x  - initial position
+     *     v  - initial velocity
+     *     dt - timestep
+     *     a  - acceleration function handler
+     *
+     * Returns:
+     *     [xf, vf] - array containing the next position and velocity
+     */
+    function rk4 (x, v, dt, a) {
+        var C = 0.5 * dt, K = dt / 6;
+        a = a || function () {return 0;};
+
+        var x1 = x,             v1 = v,             a1 = a (x, v, 0),
+            x2 = x + C * v1,    v2 = v + C * a1,    a2 = a (x2, v2, C),
+            x3 = x + C * v2,    v3 = v + C * a2,    a3 = a (x3, v3, C),
+            x4 = x + v3 * dt,   v4 = v + a3 * dt,   a4 = a (x4, v4, dt);
+
+        var xf = x + K * (v1 + 2 * v2 + 2 * v3 + v4),
+            vf = v + K * (a1 + 2 * a2 + 2 * a3 + a4);
+        
+        return [xf, vf];
+    };
 }
