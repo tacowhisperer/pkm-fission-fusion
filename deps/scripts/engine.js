@@ -6,7 +6,7 @@
  * Arguments:
  *     
  */
-function GameEngine (canvasWidth, canvasHeight) {
+function GameEngine (canvasWidth, canvasHeight, eventJSON) {
     /*
     Default PIXI Renderer Options (PIXI.DEFAULT_RENDER_OPTIONS):
         Name   |   Type   |   Default Value
@@ -77,7 +77,7 @@ function GameEngine (canvasWidth, canvasHeight) {
         scenes['SCENE_DNE'].position.set (canvasWidth / 2, canvasHeight / 2);
 
     // Stores all events as boolean flags to determine if something has happened
-    this.events = new EventHandler ();
+    this.events = new EventHandler (eventJSON);
 
 
     // Game Engine Variables
@@ -301,6 +301,8 @@ function GameEngine (canvasWidth, canvasHeight) {
         this.wildPokemon = worldImageMetadata.wildPokemon;
         this.bigBoulders = worldImageMetadata.bigBoulders;
         this.ledges = worldImageMetadata.ledges;
+        this.cliffs = worldImageMetadata.cliffs;
+        this.hole = worldImageMetadata.holes;
 
         // OpenWorld children (rooms, subcaves, etc.)
         this.children = [];
@@ -413,7 +415,6 @@ function EventHandler (eventJSON) {
             children: ['child0', 'child1', ...],
 
             // ADDED IN DURING CONSTRUCTION AND FOR INTERNAL USE ONLY
-            countdownTicker: #,
             fired: false // used to differentiate between an event being fired (increases children countdown tickers)
                          // vs being fireable (checks countdown ticker)
         }, ... */
@@ -423,44 +424,41 @@ function EventHandler (eventJSON) {
     for (var ev in events) {
         var evnt = events[ev];
 
-        evnt.parents = set (evnt.parents);
+        evnt.parents = toMapping (set (evnt.parents));
         evnt.children = set (evnt.children);
-        evnt.countdownTicker = evnt.parents.length;
         evnt.fired = false;
     }
 
     // Adds an event to the events plain object, or overwrites them if they exist -> chainable
     this.addEvent = function (name, parents, children) {
         // Adds an isolated event (not dependent on other events and no events depend on it)
-        if (arguments.length === 1) events[name] = {parents: [], children: [], countdownTicker: 0, fired: false}
+        if (arguments.length === 1) events[name] = {parents: {}, children: [], fired: false};
 
         // Both parents and children must be Arrays to add to the events object
-        else if (parents instanceof Array && children instanceof Array && typeof name == 'string') {
-            // creates the plain object in the events map
+        else if (typeof name == 'string' || typeof name == 'number' && parents instanceof Array && children instanceof Array) {
             events[name] = {};
 
-            // sets the basic properties of the newly created plain object
             var newEvent = events[name];
-            newEvent.parents = set (parents);
+            newEvent.parents = toMapping (set (parents));
             newEvent.children = set (children);
-            newEvent.countdownTicker = newEvent.parents.length;
             newEvent.fired = false;
 
-            // recursively add non-existent parents, or add properties to existing parent events
-            for (var i = 0; i < newEvent.parents.length; i++) {
-                if (!events[newEvent.parents[i]]) this.addEvent (newEvent.parents[i], [], [name]);
-                else events[newEvent.parents[i]].children.push (name);
+            // recursively add non-existent parents, or add properties to existing parent events if properties don't already exist
+            for (var parent in newEvent.parents) {
+                var pEvent = events[parent];
+
+                if (!pEvent) this.addEvent (parent, [], [name]);
+                else if (pEvent.children.indexOf (name) === -1) pEvent.children.push (name);
             }
 
             // recursively add non-existing children, or add properties to existing children events
             for (var i = 0; i < newEvent.children.length; i++) {
-                if (!events[newEvent.children[i]]) this.addEvent (newEvent.children[i], [name], []);
-                else {
-                    var childEvent = events[newEvent.children[i]];
+                var cEvent = events[newEvent.children[i]];
 
-                    childEvent.parents.push (name);
-                    childEvent.countdownTicker++;
-                    childEvent.fired = false;
+                if (!cEvent) this.addEvent (newEvent.children[i], [name], []);
+                else if (!cEvent.parents[name]) {
+                    cEvent.parents[name] = false;
+                    cEvent.fired = false;
                 }
             }
         }
@@ -469,135 +467,119 @@ function EventHandler (eventJSON) {
     };
 
     // Removes an event from the events plain object if it exists, does nothing otherwise -> chainable
-    this.removeEvent = function (name) {
-        if (events[name]) {
-            // Remove the event from the parents' children arrays
-            var eventParents = events[name].parents;
-            for (var i = 0; i < eventParents.length; i++) {
-                var parentChildren = events[eventParents[i]].children;
-                parentChildren.splice (parentChildren.indexOf (name), 1);
+    this.removeEvent = function () {
+        for (var a = 0; a < arguments.length; a++) {
+            var name = arguments[a];
+            if (events[name]) {
+                // Remove the element from the parents' children arrays
+                var eventParents = events[name].parents;
+                for (var parent in eventParents) {
+                    var parentChildren = events[parent].children;
+                    parentChildren.splice (parentChildren.indexOf (name), 1);
+                }
+
+                // Remove the event from its children's dependencies
+                var eventChildren = events[name].children;
+                for (var i = 0; i < eventChildren.length; i++) {
+                    var childrenParents = events[eventChildren[i]].parents;
+                    delete childrenParents[name];
+                }
+
+                delete events[name];
             }
-
-            // Remove the event from its children's dependencies
-            var eventChildren = events[name].children;
-            for (var i = 0; i < eventChildren.length; i++) {
-                var childrenParents = events[eventChildren[i]].parents;
-                childrenParents.splice (childrenParents.indexOf (name), 1);
-
-                // Reduce the child's countdown ticker
-                events[eventChildren[i]].countdownTicker--;
-            }
-
-            delete events[name];
         }
 
         return this;
     };
 
-    // Attempts to fire an event, but remains false if countdownTicker is not met -> chainable
-    this.fire = function (name) {
-        // Only fire an event if its countdown ticker hit zero (all parent events have fired, or is root event)
-        var ev = events[name];
-        if (ev.countdownTicker === 0) {
-            var evChildren = ev.children;
+    // Attempts to fire input events, but does nothing if not all parent events have fired -> chainable
+    this.fire = function () {
+        for (var a = 0; a < arguments.length; a++) {
+            // Only fire an event if all parents have fired
+            var name = arguments[a], ev = events[name];
+            if (ev) {
+                var allFired = true;
+                for (var parent in ev.parents) {
+                    if (!events[parent].fired) {
+                        allFired = false;
+                        break;
+                    }
+                }
 
-            ev.fired = true;
-            for (var i = 0; i < evChildren.length; i++) ev[evChildren[i]].countdownTicker--;
+                if (allFired) {
+                    ev.fired = true;
+                    for (var i = 0; i < ev.children.length; i++) events[ev.children[i]].parents[name] = true;
+                }
+            }
         }
-    
+
         return this;
     };
+
+    // Un-fires an event; does nothing if the event does not exist -> chainable
+    this.unFire = function () {
+        for (var a = 0; a < arguments.length; a++) {
+            // Unfire the event and update all children mappings
+            var name = arguments[a], ev = events[name];
+            if (ev) {
+                ev.fired = false;
+                for (var i = 0; i < ev.children.length; i++) {
+                    events[ev.children[i]].parents[name] = false;
+                    events[ev.children[i]].fired = false;
+                }
+            }
+        }
+
+        return this;
+    }
 
     // Checks the status of an event -> boolean
-    this.isFired = function (name) {
-        return events[name].fired;
-    };
+    this.isFired = function (name) {return events[name]? events[name].fired : null;};
 
-    // Adds a parent event to the specified event. Does nothing if the parent event does not exist. -> chainable
+    // Adds a parent event to the specified event. Does nothing if the name/parent event does not exist. -> chainable
     this.addParentTo = function (name, parent) {
-        addRemoveParentChildWorker (true, true, name, parent);
-        return this;
-    };
-
-    // Removes a parent event to the specified event. Does nothing if the parent event does not exist. -> chainable
-    this.removeParentFrom = function (name, parent) {
-        addRemoveParentChildWorker (false, true, name, parent);
-        return this;
-    };
-
-    // Adds a child event to the specified event. Does nothing if the child event does not exist. -> chainable
-    this.addChildTo = function (name, child) {
-        addRemoveParentChildWorker (true, false, name, child);
-        return this;
-    };
-
-    // Removes a child event to the specified event. Does nothing if the parent event does not exist. -> chainable
-    this.removeChildFrom = function (name, child) {
-        addRemoveParentChildWorker (false, false, name, child);
-        return this;
-    };
-
-    // Add/remove parent/child event worker function
-    function addRemoveParentChildWorker (isAdd, isParent, name, relative) {
-        // Only do modifications if the relative exists in the events plain object
-        if (events[relative]) {
-            var ev = events[name], i = isParent? ev.parents.indexOf (relative) : ev.children.indexOf (relative);
-
-            // Handle a parent modification only if parent exists
-            if (isParent) {
-                if (isAdd && i === -1) {
-                    // Add the new parent to the event
-                    ev.parents.push (relative);
-                    ev.countdownTicker++;
-
-                    // Add the event as a child to the new parent
-                    events[ev.parents[i]].children.push (name);
-                }
-
-                else if (!isAdd && i > -1) {
-                    // Remove the parent from the event
-                    ev.parents.splice (i, 1);
-                    ev.countdownTicker--;
-
-                    // Remove the event as a child from the parent
-                    i = events[relative].children.indexOf (name);
-                    events[relative].children.splice (i, 1);
-                }
-            }
-
-            else {
-                if (isAdd && i === -1) {
-                    // Add the new child to the event
-                    ev.children.push (relative);
-
-                    // Add the event to the new child
-                    events[ev.children[i]].parents.push (name);
-                    events[ev.children[i]].countdownTicker++;
-                }
-
-                else if (!isAdd && i > -1) {
-                    // Remove the child from the event
-                    ev.children.splice (i, 1);
-
-                    // Remove the event as a parent from the child
-                    i = events[relative].parents.indexOf (name);
-                    events[relative].parents.splice (i, 1);
-                    events[relative].countdownTicker--;
-                }
-            }
+        if (events[name] && events[parent] && typeof events[name].parents[parent] != 'boolean') {
+            events[name].parents[parent] = events[parent].fired;
+            events[name].fired = false;
+            events[parent].children.push (name);
         }
+
+        return this;
+    };
+
+    // Removes a parent event to the specified event. Does nothing if the name/parent event does not exist. -> chainable
+    this.removeParentFrom = function (name, parent) {
+        if (events[name] && events[parent] && typeof events[name].parents[parent] == 'boolean') {
+            delete events[name].parents[parent];
+            events[name].fired = false;
+            events[parent].children.splice (events[parent].children.indexOf (name), 1);
+        }
+
+        return this;
+    };
+
+    // Maps each element in the set array to false
+    function toMapping (setArray) {
+        var map = {};
+        for (var i = 0; i < setArray.length; i++) map[setArray[i]] = false;
+        return map;
+    }
+
+    // Returns the keys of the mapping as an array
+    function toArray (mapping) {
+        var arr = [];
+        for (var prop in mapping) arr.push (prop);
+        return arr;
     }
 
     // Reduces an array to a set like in Python. Code taken from https://gist.github.com/brettz9/6137753
-    function set (array) {
-        return array.reduce (function (a, v) {if (a.indexOf (v) === -1) {a.push (v);} return a;}, []);
-    }
+    function set (array) {return array.reduce (function (a, v) {if (a.indexOf (v) === -1) {a.push (v);} return a;}, []);}
 
     // Returns a human-readable adjacency list of the events stored in the event handler
     this.toString = function () {
         var s = '', f = true;
         for (var ev in events) {
-            var e = events[ev], ln = ev + ' -> fired: ' + e.fired + '; parents: >' + e.parents + '; children: >' + e.children;
+            var e = events[ev], ln = '"' + ev + '" -> f: ' + e.fired + '; p: ' + toArray (e.parents) + '; c: ' + e.children;
             s += !f? '\n    ' + ln : (function () {f = false; return '    ' + ln;})();
         }
 
