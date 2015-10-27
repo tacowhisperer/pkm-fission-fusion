@@ -22,11 +22,11 @@
 // Version of the game
 "version": VERSION,
 
-// Path to save file, or create new one. Save file is a string of all the values of properties defined below as they have
+// Path to existing save file, or create new one. Save file is a string of all the values of properties defined below as they have
 // changed during gameplay. Certain properties cannot be changed.
 // Format:
-//     MASTER_PROPERTY->SUB_PROPERTY_SUB_SUB_PROPERTY = NEW_VALUE;...
-undefined || "save": PATH_TO_SAVE_FILE,
+//     MASTER_PROPERTY->SUB_PROPERTY_SUB_SUB_PROPERTY->...->LEAF_PROPERTY = NEW_VALUE;...
+"save": PATH_TO_SAVE_FILE,
 
 // Contains the event JSON that will be fed to the EventHandler function. Save file overwrites this each time
 "events": {
@@ -68,16 +68,40 @@ undefined || "save": PATH_TO_SAVE_FILE,
 // Defines all status types and their effects on Pokemon
 "statuses": {
     STATUS0: {
-        "cannotAttack": false || [x /*0 <= x <= 1*/, STR_MESSAGE_TO_DISPLAY_ON_NO_ATTACK] // x is rate of not being able to attack
+        "cannotAttack": false || [x /*0 <= x <= 1*/, STR_MESSAGE_TO_DISPLAY_ON_NO_ATTACK] // x is odds of not being able to attack
 
-        "statChanges": {
-            "atk": [],
-            "def": [],
-            "spAtk": [],
-            "spDef": [],
-            "spd"
+        // Defines how the status behaves in-battle
+        "inBattleStatChanges": {
+            /*
+            EASING_FUNCTION must be a JavaScript function, or function string, that takes as an argument the turn count since the
+            start of receiving the current status (starting at 0) and returns the number value used in-battle for NUM_TURNS
+            */
+            "health":      ["+" || "-" + PERCENT + "%", NUM_TURNS, EASING_FUNCTION],
+            "attack":      ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "defense":     ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "spAtk":       ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "spDef":       ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "speed":       ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "accuracy":    ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "evasiveness": ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION]
+        },
+
+        // Defines how the status behaves when the player is walking about in the open world
+        "outOfBattleStatChanges": {
+            /*
+            EASING_FUNCTION must be a JavaScript function, or function string, that takes as an argument the turn count since the
+            start of receiving the current status (starting at 0) and returns the number value used in-battle for NUM_TURNS
+            */
+            "health":      ["+" || "-" + PERCENT + "%", NUM_TURNS, EASING_FUNCTION],
+            "attack":      ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "defense":     ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "spAtk":       ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "spDef":       ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "speed":       ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "accuracy":    ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION],
+            "evasiveness": ["+" || "-" + DELTA, NUM_TURNS, EASING_FUNCTION]
         }
-    }
+    }, ...
 },
 
 // Defines all moves that pokemon can use
@@ -99,9 +123,15 @@ undefined || "save": PATH_TO_SAVE_FILE,
         ],
 
         // Stat changes that a move does to the target
-        "targetChanges": {
-
-        },
+        "targetChanges": [
+            [false || ("+" || "-" + ATK_DELTA),         RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + DEF_DELTA),         RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + SP_ATK_DELTA),      RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + SP_DEF_DELTA),      RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + SPEED_DELTA),       RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + ACCURACY_DELTA),    RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + EVASIVENESS_DELTA), RATE_OF_STAT_CHANGE_ON_MOVE_USAGE]
+        ],
 
         // Defines the type of status change that happens to whom for the specified number of turns
         "statusChanges": {
@@ -113,20 +143,23 @@ undefined || "save": PATH_TO_SAVE_FILE,
         // start and end point so that it looks right from a battle of any number of pokemon across any length of screen
         "animation": PATH_TO_ANIMATION_JSON // || will be auto corrected to default animation
     }, ...
-}
+},
 
 // Defines all pokemon types and how they stack up against one another
 "types": {
     TYPE0: {
         "strongAgainst": [TYPE_X, ...],
         "weakAgainst": [TYPE_Y, ...],
-        "doesNotAffect": [TYPE_Z, ...]
+        "doesNotAffect": [TYPE_Z, ...],
+
+        // Gen-6 potential mechanic where a pokemon of a certain type cannot get a certain type of status
+        "unaffectedByStatus": [STATUS_X, ...]
     }, ...
-}
+},
 
 // Contains all information of all rooms that will be available in games (rooms include cities, routes, caves, etc.)
 "rooms": {
-    ROOM: {
+    ROOM0: {
         // Array of all of the audio that will be used in the room. FILE_NICKNAME is used for the PIXI.js loader
         "audio": [{FILE_NICKNAME: PATH_TO_MUSIC_FILE0}, ...],
 
@@ -136,8 +169,21 @@ undefined || "save": PATH_TO_SAVE_FILE,
         // The index of the background song that will repeat
         "themeSong": INDEX,
 
-        // The index of the background image in the images array
-        "background": INDEX,
+        // Img layer queue -> contains the index of each image that will construct the room in order from background to foreground
+        "layers": [
+            {   // Lowest layer
+                "index": INDEX_IN_images_ARRAY_DEFINED_ABOVE,
+                "visible": BOOLEAN
+
+                // Offsets are in pixels
+                "offsetX": NUMBER_VALUE,
+                "offsetY": NUMBER_VALUE,
+            }, ... ,
+
+            {   // Highest layer
+                ...
+            }
+        ],
 
         // Contains the coordinates, frame count, and image information of all tiles in the room that animate
         "animatedTiles": {
@@ -147,33 +193,50 @@ undefined || "save": PATH_TO_SAVE_FILE,
 
         // Defines all characters found in the room, their movement types, and so on
         "characters": {
-            CHARACTER0: {
+            CHAR_ID0: {
                 /*
-                    All Character Types:.
-                        "OLD_MAN"
-                        "OLD_WOMAN"
-                        "MALE_BREEDER"
-                        "FEMALE_BREEDER"
-                        "..."
+                All Character Types:.
+                    "OLD_MAN"
+                    "OLD_WOMAN"
+                    "MALE_BREEDER"
+                    "FEMALE_BREEDER"
+                    "..."
                 */
                 "type": CHARACTER_TYPE,
                 "visible": BOOLEAN,
 
                 // Initial position of the character is different according to events not fired yet, or not dependent on events
-                "position": [{EVENT0: [X0, Y0]}, ...] || [X0, Y0] // means that character is not dependent on events
+                "position": [{EVENT0: [X0, Y0]}, ...] || /*[*/[X0, Y0]/*] means that character is not dependent on events*/
             }, ...
         },
 
         // Defines all items found in the room
         "items": {
             ITEM0: {
-                ""
-            }
+                "image": INDEX,
+                "unpenatrable": BOOLEAN,
+                "location": [X0, Y0]
+            }, ...
         },
 
-        // Defines all automatic movement that may be found in the room, triggers event/requires event to autoplay
+        // Defines all automatic movement that may be found in the room, triggers event/requires event to autoplay. Each is
+        // checked in the order that it appears in the array.
         "story": [
-            ""
+            {
+                "requires": false || EVENT_NAME,
+                "triggers": EVENT_NAME,
+
+                /*
+                Movement string instruction format (concatenate with " THEN " string, async with " AND " string):
+                    "PAUSE FOR " + x + " SECONDS"
+                    CHAR_ID + " WALKS " + "UP" || "DOWN" || "LEFT" || "RIGHT" + " FOR " + x + " STEPS"
+                    CHAR_ID + " TURNS TO FACE " + "UP" || "DOWN" || "LEFT" || "RIGHT"
+                    CHAR_ID + " TALKS '" || " SHOUTS '" || " DISPLAYS '" + text + "' AT " + "SLOW" || "NORMAL" || "FAST" + " PACE"
+                */
+                "movement": [
+                    MOVEMENT_INSTRUCTIONS_FOR_EVENT0, ...
+                ]
+            }, ...
         ],
 
         // Defines the point at which the player will enter, along with the direction he/she should be facing
@@ -196,18 +259,19 @@ undefined || "save": PATH_TO_SAVE_FILE,
                     undefined || "item": ITEM_NAME,
 
                     /*
-                        INSTRUCTION Format:
-                            ** Queue instruction keywords with the " THEN " string **
-                            "FIRE" || "UNFIRE" + " '" + eventName + "'"
-                            "TOGGLE '" + eventName + "': {" + INSTRUCTION_IF_EVNT_TRUE + "} | {" + INSTRUCTION_IF_EVNT_FALSE + "}"
-                            "TALK" || "SHOUT" + " '" + text + "'"
-                            "DISPLAY '" + text + "'"
+                    INSTRUCTION Format:
+                        ** Queue instruction keywords with the " THEN " string **
+                        "FIRE" || "UNFIRE" + " '" + eventName + "'"
+                        "TOGGLE '" + eventName + "': {" + INSTRUCTION_IF_EVNT_TRUE + "} | {" + INSTRUCTION_IF_EVNT_FALSE + "}"
+                        "TALK" || "SHOUT" + " '" + text + "'"
+                        "DISPLAY '" + text + "'"
+                        "PLAY " + indexToAudioInAudioArray
 
-                            // Shows up as a dialogue box whether or not speech box is active
-                            "CHOOSE {" + option0 + "- {" + INSTRUCTION_IF_SELECTED + "}}"
+                        // Ex.) Shows up as a dialogue box whether or not speech box is active
+                        "CHOOSE {" + option0 + "- {" + INSTRUCTION_IF_SELECTED + "}}"
 
-                        Examples:
-                            DISPLAY 'Player found a rock!' THEN 
+                    Examples:
+                        DISPLAY 'Player found a rock!' THEN 
                     */
                     undefined || "onCollision": INSTRUCTION,
                     undefined || "onTalk": INSTRUCTION
