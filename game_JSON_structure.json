@@ -1,0 +1,220 @@
+{
+/**
+ * The following is the structure of the JSON that will define any pokemon game that will be fed to the GameEngine defined in the 
+ * engine.js file. 
+ *
+ *   - Note that all capitalized words indicate any string/numerical value as seen relevant, and all quoted words must
+ *       appear as-is (null is also as-is).
+ *
+ *   - The OR symbol, ||, means that the value must be either the left or the right, but not both at the same time.
+ * 
+ *   - Ellipses indicate that the parent container may contain from 0 to any number of the element before the ellipses were typed.
+ *
+ *   - undefined || ... means that either the property does not exist in the first place, or its value is ...
+ *
+ * Any other clarifications will be shown in the comments below.
+ */
+
+
+// Title of the game
+"title": GAME_TITLE,
+
+// Version of the game
+"version": VERSION,
+
+// Path to save file, or create new one. Save file is a string of all the values of properties defined below as they have
+// changed during gameplay. Certain properties cannot be changed.
+// Format:
+//     MASTER_PROPERTY->SUB_PROPERTY_SUB_SUB_PROPERTY = NEW_VALUE;...
+undefined || "save": PATH_TO_SAVE_FILE,
+
+// Contains the event JSON that will be fed to the EventHandler function. Save file overwrites this each time
+"events": {
+    EVENT0: {
+        "parents": [PARENT_EVENT0, ...],
+        "children": [CHILD_EVENT    0, ...]
+    }, ...
+},
+
+// Defines all items that will be used in the game
+"items": {
+    ITEM0: {
+        /*
+        All valid properties: 
+            //FIRED_EVENT describes the event that is fired when acquired
+            {"key": FIRED_EVENT, "effect": null || EFFECT},
+            {"main": EFFECT, "isMedical": BOOLEAN},
+            {"tm": MOVE},
+            {"ball": CATCH_RATE},
+            {"berry": EFFECT},
+            {"custom": {"type": CUSTOM_TYPE, "effect": EFFECT}} 
+
+        All valid EFFECT values (strings):
+            "HELD: ON " + CONDITION + " DO " + ACTION
+            "HELD: ON " + CONDITION + " DO " + ACTION + " "
+            "USE: " + ACTION
+
+        All valid CONDITION values (strings):
+            "IN-BATTLE HEALTH " + "EQ " || "LT " || "GT " || "LTEQ " || "GTEQ " + PERCENT + "%"
+            "IN-BATTLE STATUS IS " + STATUS
+            "IN-BATTLE STAT " + "INCREASED" || "DECREASED" || "CHANGED"
+            "IN-BATTLE STATUS " + STATUS + " INCREASED" || " DECREASED" || " CHANGED"
+         */
+        "properties": ITEM_PROPERTIES,
+        "isHoldable": BOOLEAN
+    }, ...
+},
+
+// Defines all status types and their effects on Pokemon
+"statuses": {
+    STATUS0: {
+        "cannotAttack": false || [x /*0 <= x <= 1*/, STR_MESSAGE_TO_DISPLAY_ON_NO_ATTACK] // x is rate of not being able to attack
+
+        "statChanges": {
+            "atk": [],
+            "def": [],
+            "spAtk": [],
+            "spDef": [],
+            "spd"
+        }
+    }
+},
+
+// Defines all moves that pokemon can use
+"moves": {
+    MOVE0: {
+        "type": TYPE, // must be defined in the "types" global entry
+        "power": BASE_POWER, // >= 0
+        "accuracy": BASE_ACCURACY, // >= 0
+        
+        // Stat changes that a move does to the user
+        "selfStatChanges": [
+            [false || ("+" || "-" + ATK_DELTA),         RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + DEF_DELTA),         RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + SP_ATK_DELTA),      RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + SP_DEF_DELTA),      RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + SPEED_DELTA),       RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + ACCURACY_DELTA),    RATE_OF_STAT_CHANGE_ON_MOVE_USAGE],
+            [false || ("+" || "-" + EVASIVENESS_DELTA), RATE_OF_STAT_CHANGE_ON_MOVE_USAGE]
+        ],
+
+        // Stat changes that a move does to the target
+        "targetChanges": {
+
+        },
+
+        // Defines the type of status change that happens to whom for the specified number of turns
+        "statusChanges": {
+            "target": STATUS,
+            "self": STATUS
+        }
+
+        // Defines the animation as it will appear when used by the self and by the opposing Pokemon. Uses a dynamic
+        // start and end point so that it looks right from a battle of any number of pokemon across any length of screen
+        "animation": PATH_TO_ANIMATION_JSON // || will be auto corrected to default animation
+    }, ...
+}
+
+// Defines all pokemon types and how they stack up against one another
+"types": {
+    TYPE0: {
+        "strongAgainst": [TYPE_X, ...],
+        "weakAgainst": [TYPE_Y, ...],
+        "doesNotAffect": [TYPE_Z, ...]
+    }, ...
+}
+
+// Contains all information of all rooms that will be available in games (rooms include cities, routes, caves, etc.)
+"rooms": {
+    ROOM: {
+        // Array of all of the audio that will be used in the room. FILE_NICKNAME is used for the PIXI.js loader
+        "audio": [{FILE_NICKNAME: PATH_TO_MUSIC_FILE0}, ...],
+
+        // Array of all of the images that will be used in the room. FILE_NICKNAME is used for the PIXI.js loader
+        "images": [{FILE_NICKNAME: PATH_TO_IMAGE_FILE0}, ...],
+
+        // The index of the background song that will repeat
+        "themeSong": INDEX,
+
+        // The index of the background image in the images array
+        "background": INDEX,
+
+        // Contains the coordinates, frame count, and image information of all tiles in the room that animate
+        "animatedTiles": {
+            // Indexes refer to the paths found in the images array
+            COORDINATE_X0: [ COORDINATE_Y0, FRAME_DURATION, [INDEX0, ...] ], ...
+        },
+
+        // Defines all characters found in the room, their movement types, and so on
+        "characters": {
+            CHARACTER0: {
+                /*
+                    All Character Types:.
+                        "OLD_MAN"
+                        "OLD_WOMAN"
+                        "MALE_BREEDER"
+                        "FEMALE_BREEDER"
+                        "..."
+                */
+                "type": CHARACTER_TYPE,
+                "visible": BOOLEAN,
+
+                // Initial position of the character is different according to events not fired yet, or not dependent on events
+                "position": [{EVENT0: [X0, Y0]}, ...] || [X0, Y0] // means that character is not dependent on events
+            }, ...
+        },
+
+        // Defines all items found in the room
+        "items": {
+            ITEM0: {
+                ""
+            }
+        },
+
+        // Defines all automatic movement that may be found in the room, triggers event/requires event to autoplay
+        "story": [
+            ""
+        ],
+
+        // Defines the point at which the player will enter, along with the direction he/she should be facing
+        "entryPoint": [X0, Y0, FACING_DIRECTION],
+
+        // Contains initial information over all tiles in the room. Undefined coordinates are unpenatrable by default
+        "tiles": {
+            COORDINATE_X0: [ COORDINATE_Y0, {
+                    // Properties array is array of booleans
+                    "properties": [IS_UNPENATRABLE, IS_WATER, IS_DEEPWATER, IS_BOULDER, IS_SMASHABLE, IS_LEDGE, IS_CLIFF],
+                    undefined || "wild": {
+                                    "rate": ENCOUNTER_PROB,
+                                    "environment": ENVIRONMENT_TYPE, // "OCEAN", "DESERT", "GRASS", etc.
+
+                                    // "SUNNY", "HARSH_SUNNY", "RAINY", "HEAVY_RAIN", "SANDSTORM", and "HAIL"
+                                    undefined || "weather": WEATHER_TYPE, // "RAINY", "SUNNY", etc.
+                                    PKM0: P0, ...
+                                 },
+                    undefined || "teleportsTo": [NEW_COORDINATE_X, NEW_COORDINATE_Y],
+                    undefined || "item": ITEM_NAME,
+
+                    /*
+                        INSTRUCTION Format:
+                            ** Queue instruction keywords with the " THEN " string **
+                            "FIRE" || "UNFIRE" + " '" + eventName + "'"
+                            "TOGGLE '" + eventName + "': {" + INSTRUCTION_IF_EVNT_TRUE + "} | {" + INSTRUCTION_IF_EVNT_FALSE + "}"
+                            "TALK" || "SHOUT" + " '" + text + "'"
+                            "DISPLAY '" + text + "'"
+
+                            // Shows up as a dialogue box whether or not speech box is active
+                            "CHOOSE {" + option0 + "- {" + INSTRUCTION_IF_SELECTED + "}}"
+
+                        Examples:
+                            DISPLAY 'Player found a rock!' THEN 
+                    */
+                    undefined || "onCollision": INSTRUCTION,
+                    undefined || "onTalk": INSTRUCTION
+                }
+            ], ...
+        }
+    }, ...
+}
+
+}

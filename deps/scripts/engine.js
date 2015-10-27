@@ -4,9 +4,12 @@
  * beforehand.
  *
  * Arguments:
- *     
+ *     canvasWidth - number specifying the width of the internal PIXI canvas
+ *     canvasHeight - number specifying the height of the internal PIXI canvas
+ *     eventJSON - JSON object denoting the relationships between all events that should be handled by the engine
+ *     assetLoader - PIXI.loader that holds all assets/is reset upon request and holds all assets
  */
-function GameEngine (canvasWidth, canvasHeight, eventJSON) {
+function GameEngine (canvasWidth, canvasHeight, eventJSON, assetLoader) {
     /*
     Default PIXI Renderer Options (PIXI.DEFAULT_RENDER_OPTIONS):
         Name   |   Type   |   Default Value
@@ -84,39 +87,46 @@ function GameEngine (canvasWidth, canvasHeight, eventJSON) {
     var activeAnimations = [],
         inGameEvents = {};      // Used to determine speeches within characters and so on
 
-    /* Returns the string of the active scene name */
-    this.getActiveScene = function () {return scenes[activeScene];};
-
-    /* Function that creates a new scene to the game engine. Existing scenes are overwritten. */
-    this.createScene = function (name) {
-        scenes[name] = new PIXI.Container ();
-        scenes[name].position.set (eWidth / 2, eHeight / 2);
-        return this;
-    };
-
-    /* Function that chages the active scene to another existing scene, or creates it and sets it if it does not exist. */
-    this.setActiveScene = function (name) {
-        activeScene = name;
-        if (!scenes[name]) {
+    /* Contains all scene methods in a single accessable plain object */
+    this.scenes = {        
+        // Creates a new PIXI.Container and adds it to the scenes object. All scenes are automatically centered in the screen size
+        createScene: function (name) {
             scenes[name] = new PIXI.Container ();
             scenes[name].position.set (eWidth / 2, eHeight / 2);
+            return this;
+        },
+
+        // Returns the currently active scene
+        getActiveScene: function () {
+            return scenes[activeScene];
+        },
+
+        // Returns a PIXI.Container from the scenes object
+        getScene: function (name) {
+            return scenes[name];
+        },
+
+        // Sets the active scene to the scene specified, or creates it if it does not exist
+        setActiveScene: function (name) {
+            activeScene = name;
+            if (!scenes[name]) {
+                scenes[name] = new PIXI.Container ();
+                scenes[name].position.set (eWidth / 2, eHeight / 2);
+            }
+            return this;
+        },
+
+        // Removes a scene from the scenes object if it exists; does nothing otherwise
+        deleteScene: function (name) {
+            if (scenes[name]) delete scenes[name];
+            return this;
+        },
+
+        // Returns the entire scenes object as-is
+        getScenes: function () {
+            return scenes;
         }
-        return this;
-    }
-
-    /* Function that gets a scene by name, or undefined if non-existent */
-    this.getScene = function (name) {
-        return scenes[name];
     };
-
-    /* Function that deletes a scene from the scenes object if it exists */
-    this.deleteScene = function (name) {
-        if (scenes[name]) delete scenes[name];
-        return this;
-    };
-
-    /* Function that returns the scenes object */
-    this.getScenes = function () {return scenes;};
 
     /* Function that updates everything in the engine. Generates a time i through Runge-Kutta integration*/
     var t_i, i_t = 0;
